@@ -76,7 +76,6 @@ public static class SimplePool
         public GameObject Spawn(Vector3 pos, Quaternion rot)
         {
             GameObject obj;
-            Debug.Log(inactive.Count);
             if (inactive.Count == 0)
             {
                 // We don't have an object in our pool, so we
