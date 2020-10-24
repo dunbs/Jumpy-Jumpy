@@ -4,16 +4,12 @@ using UnityEngine;
 
 public class PlayerController : MonoBehaviour
 {
-    public float spinSpeed = 10;
 
-    private void Update()
-    {
-        transform.eulerAngles += Vector3.left * spinSpeed;
-    }
+    public float jumpForce = 3;
 
     private void OnCollisionEnter(Collision collision)
     {
-        GetComponent<Rigidbody>().velocity = Vector3.up * 3;
-        GameController.Instance.isFalling = false;
+        GetComponent<Rigidbody>().velocity = Vector3.up * jumpForce;
+        GameController.Instance.IsFalling = false;
     }
 }

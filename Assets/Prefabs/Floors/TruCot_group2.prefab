@@ -103,7 +103,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 4790362820428498172}
-  - component: {fileID: 3678157757280299762}
+  - component: {fileID: -973797244494805487}
   m_Layer: 0
   m_Name: TruCot_group2
   m_TagString: Untagged
@@ -120,7 +120,7 @@ Transform:
   m_GameObject: {fileID: 3281040572844196910}
   m_LocalRotation: {x: 0, y: 0.070391946, z: 0, w: 0.99751943}
   m_LocalPosition: {x: 0.000000033872205, y: 1.55, z: -0.000000070048245}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 1, y: 0.65, z: 1}
   m_Children:
   - {fileID: 2658306635438220490}
   - {fileID: 6372532754675026567}
@@ -128,22 +128,19 @@ Transform:
   m_Father: {fileID: 0}
   m_RootOrder: 0
   m_LocalEulerAnglesHint: {x: 0, y: 8.073, z: 0}
---- !u!54 &3678157757280299762
-Rigidbody:
+--- !u!114 &-973797244494805487
+MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 3281040572844196910}
-  serializedVersion: 2
-  m_Mass: 1
-  m_Drag: 0
-  m_AngularDrag: 0.05
-  m_UseGravity: 0
-  m_IsKinematic: 1
-  m_Interpolate: 0
-  m_Constraints: 0
-  m_CollisionDetection: 3
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2c1359589a378b14fa961dcd9b8a73e1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  fallDuration: 1
 --- !u!1 &3961705603542224426
 GameObject:
   m_ObjectHideFlags: 0

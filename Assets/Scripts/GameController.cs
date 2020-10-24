@@ -4,12 +4,13 @@ using UnityEngine;
 
 public class GameController : MonoBehaviour
 {
+    private const int MAIN_PILLAR_PRE_INSTANTIATE_NUMBER = 10;
+    private const int FLOOR_PRE_INSTANTIATE_NUMBER = 3;
     public static GameController Instance { get; private set; }
+    public bool IsFalling { get => isFalling; set => isFalling = value; }
 
-    private const int preMainPillarsCount = 10;
     public GameObject mainPillar;
     public float distanceBetweenFloors = 5f;
-    private const int preFloorsCount = 3;
     public List<GameObject> floors;
     public Vector3 firstFloorPosition;
 
@@ -18,17 +19,15 @@ public class GameController : MonoBehaviour
     [Tooltip("Camera distance to the player.")]
     public float distance;
 
-    [HideInInspector]
-    public bool isFalling = true;
+    public static Camera mainCamera;
 
-    private int score;
-
-    private new Camera camera;
+    private bool isFalling = true;
 
     // Auto-generate map variables
-    private Queue<MapObject> mainPillarStack = new Queue<MapObject>();
-    private Queue<GameObject> floorStack = new Queue<GameObject>();
+    private LinkedList<Pillar> mainPillars = new LinkedList<Pillar>();
+    private Queue<FloorController> floorQueue = new Queue<FloorController>();
     private float lastFloorHeight;
+    private Pillar lastQueuedPillar;
 
     // Mouse drag control variables
     private float offset;
@@ -37,13 +36,14 @@ public class GameController : MonoBehaviour
     private void Awake()
     {
         Instance = this;
-        camera = Camera.main;
-        PreInstantiate();
+        mainCamera = Camera.main;
+        //PreInstantiate();
     }
 
     private void Start()
     {
-        AddFloors(100);
+        AddFloors(5);
+        AddMainPillars();
     }
 
     private void Update()
@@ -56,57 +56,71 @@ public class GameController : MonoBehaviour
         MoveCamera();
     }
 
-    private void PreInstantiate()
-    {
-        // Main Pillar;
-        var lastPillar = new MapObject(Instantiate(mainPillar));
-        mainPillarStack.Enqueue(lastPillar);
-        for (int i = 0; i < preMainPillarsCount; i++)
-        {
-            var y = lastPillar.Renderer.bounds.size.y;
-            var newPos = lastPillar.GameObject.transform.position - Vector3.up * y;
-            var newPillar = new MapObject(Instantiate(mainPillar, newPos, Quaternion.identity));
-            lastPillar = newPillar;
-            mainPillarStack.Enqueue(newPillar);
-        }
-
-        // Floors
-        /*
-        int originalCount = floors.Count;
-        floors.Capacity = originalCount * 3;
-        for (int i = 0; i < originalCount; i++)
-        {
-            for (int j = 0; j < preFloorsCount - 1; j++)
-            {
-                floors.Add(Instantiate(floors[i]));
-            }
-            floors[i] = Instantiate(floors[i]);
-        }
-        */
-    }
-
     private int GetFloorIndex()
     {
         return Random.Range(0, floors.Count);
     }
 
+    private void AddFloor()
+    {
+        var newFloor = SimplePool.Spawn(floors[GetFloorIndex()], firstFloorPosition, Quaternion.identity);
+        var rotation = newFloor.transform.eulerAngles;
+        rotation.y = Random.Range(0, 360f);
+        newFloor.transform.eulerAngles = rotation;
+        floorQueue.Enqueue(newFloor.GetComponent<FloorController>());
+        firstFloorPosition -= Vector3.up * distanceBetweenFloors;
+    }
+
+
     private void AddFloors(int total)
     {
-        if (total <= 0) return;
-
-        if (floorStack.Count == 0)
-        {
-            --total;
-            var newFloor = Instantiate(floors[GetFloorIndex()], firstFloorPosition, Quaternion.identity);
-            floorStack.Enqueue(newFloor);
-        }
-
         for (int i = 0; i < total; i++)
         {
-            firstFloorPosition -= Vector3.up * distanceBetweenFloors;
-            var newFloor = Instantiate(floors[GetFloorIndex()], firstFloorPosition, Quaternion.identity);
-            floorStack.Enqueue(newFloor);
+            AddFloor();
         }
+    }
+
+    private void AddMainPillar()
+    {
+        Vector3 pos = Vector3.zero;
+        pos.y = player.position.y;
+        Pillar pillar;
+        if (mainPillars.Count == 0)
+        {
+            pillar = new Pillar(Instantiate(mainPillar));
+        }
+        else
+        {
+            Pillar firstPillar = mainPillars.First.Value;
+            if (firstPillar.IsOffScreen)
+            {
+                pillar = firstPillar;
+                mainPillars.RemoveFirst();
+            }
+            else
+            {
+                pillar = new Pillar(Instantiate(mainPillar));
+            }
+
+            Pillar lastPillar = mainPillars.Last.Value;
+            pos = lastPillar.Renderer.bounds.center;
+            pos.y -= lastPillar.Renderer.bounds.size.y;
+        }
+        pillar.GameObject.transform.position = pos;
+        pillar.GameObject.transform.SetParent(player);
+        mainPillars.AddLast(pillar);
+
+    }
+    int temp;
+    private void AddMainPillars()
+    {
+        while (ShouldAddMorePillars() && ++temp < 10) AddMainPillar();
+    }
+    private bool ShouldAddMorePillars()
+    {
+        if (mainPillars.Count < 3) return true;
+        if (mainPillars.Last.Value.IsOffScreen) return true;
+        return false;
     }
 
     private void RotateAllFloors()
@@ -118,7 +132,7 @@ public class GameController : MonoBehaviour
         if (Input.GetMouseButton(0))
         {
             offset = Input.mousePosition.x - mouseDownPos.x;
-            foreach (var floor in floorStack)
+            foreach (var floor in floorQueue)
             {
                 var angle = floor.transform.eulerAngles;
                 angle.y -= offset;
@@ -130,54 +144,47 @@ public class GameController : MonoBehaviour
 
     public void MoveCamera()
     {
-
-
-        if ((floorStack.Count > 0 && player.transform.position.y > floorStack.Peek().transform.position.y) && !isFalling) return;
-        while (floorStack.Count > 0 && player.transform.position.y < floorStack.Peek().transform.position.y)
+        if (floorQueue.Count == 0) return;
+        if (player.transform.position.y > floorQueue.Peek().transform.position.y && !IsFalling) return;
+        if (player.transform.position.y < floorQueue.Peek().transform.position.y)
         {
-            MakeFall(floorStack.Dequeue());
+            MakeFall(floorQueue.Dequeue());
+            AddFloor();
+            AddMainPillars();
         }
-        //if (!isFalling)
-        //{
-        //    while (player.transform.position.y > floorStack.Peek().transform.position.y)
-        //        floorStack.Dequeue();
-        //}
-        isFalling = true;
+        IsFalling = true;
 
-        var pos = camera.transform.position;
+        var pos = mainCamera.transform.position;
         pos.y = player.position.y + distance;
-        camera.transform.position = pos;
+        mainCamera.transform.position = pos;
 
     }
 
-
-    private void MakeFall(GameObject gameObject)
+    private void MakeFall(FloorController floor)
     {
-        Debug.Log(floorStack.Count);
-        foreach (Transform childTranform in gameObject.transform)
-        {
-            var child = childTranform.gameObject;
-            Rigidbody r = child.GetComponent<Rigidbody>();
-            if (!r) continue;
-            r.isKinematic = false;
-            r.useGravity = true;
-            r.AddForce(Vector3.one);
-        }
+        floor.StartFalling();
+        StartCoroutine(DisableFloor(floor.gameObject, floor.fallDuration));
+    }
+
+    IEnumerator DisableFloor(GameObject floor, float time)
+    {
+        yield return new WaitForSeconds(time);
+        SimplePool.Despawn(floor);
     }
 }
 
-public class MapObject
+public class Pillar
 {
     GameObject gameObject;
     Renderer renderer;
 
-    public MapObject(GameObject gameObject)
+    public Pillar(GameObject gameObject)
     {
         this.GameObject = gameObject;
         this.Renderer = gameObject.GetComponent<Renderer>();
     }
 
-    public MapObject(GameObject gameObject, Renderer renderer)
+    public Pillar(GameObject gameObject, Renderer renderer)
     {
         this.GameObject = gameObject;
         this.Renderer = renderer;
@@ -185,10 +192,12 @@ public class MapObject
 
     public GameObject GameObject { get => gameObject; set => gameObject = value; }
     public Renderer Renderer { get => renderer; set => renderer = value; }
-}
 
-public class Floor
-{
-    MapObject mapObject;
-    List<GameObject> childs;
+    public bool IsOffScreen => renderer.isVisible;
+
+    public class Floor
+    {
+        Pillar mapObject;
+        List<GameObject> childs;
+    }
 }
